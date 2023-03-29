@@ -1,13 +1,23 @@
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, createWebSocketStream } from 'ws';
+import * as net from 'net';
+
+// We Allow configuration through environmental variables.
+// If a MPD_UNIX_SOCKET is set it will override the host and port combination.
+const MPD_HOST = process.env.MPD_HOST ?? 'localhost';
+const MPD_PORT = parseInt(process.env.MPD_PORT ?? '6600');
+const MPD_UNIX_SOCKET = process.env.MPD_UNIX_SOCKET;
+
 
 const wss = new WebSocketServer({ port: 8080 });
 
-wss.on('connection', function connection(ws) {
-  ws.on('error', console.error);
+wss.on('connection', (ws) => {
+  const webSocket = createWebSocketStream(ws, { encoding: 'utf8' });
 
-  ws.on('message', function message(data) {
-    console.log('received: %s', data);
-  });
+  webSocket.on('error', console.error);
+  const mpdSocket = MPD_UNIX_SOCKET ? 
+    net.connect(MPD_UNIX_SOCKET) :  
+    net.connect(MPD_PORT, MPD_HOST);
 
-  ws.send('something');
+  webSocket.pipe(mpdSocket);
+  mpdSocket.pipe(webSocket);
 });
